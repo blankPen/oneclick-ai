@@ -4,137 +4,238 @@
 
 **项目名称**：AgentHub
 **项目类型**：桌面应用（Tauri 2.x）
-**核心功能**：通过友好的向导界面，一键安装 Claude Code、Codex、OpenCode、OpenClaw、HermesAgent 等 AI 工具，并自动修复缺失的运行时环境。
+**核心功能**：通过友好的向导界面，一键安装 Claude Code 等 AI 工具，并自动修复缺失的运行时环境。
 **目标用户**：非程序员背景的普通用户，想使用 AI 编程助手但被复杂的安装流程阻碍。
 
 ---
 
-## 2. 技术架构
+## 2. MVP 范围
 
-### 2.1 技术选型
+**本阶段只实现 Claude Code 的安装、卸载、更新。** 其他工具（Codex、OpenCode、OpenClaw、HermesAgent）先预留定义，暂不实现。
+
+---
+
+## 3. 技术架构
+
+### 3.1 技术选型
 
 - **框架**：Tauri 2.x（Rust + Web）
-- **前端**：纯 HTML/CSS/JS，单文件，复用原型图设计
-- **后端**：Rust，模块化设计
+- **前端**：纯 HTML/CSS/JS，单文件
+- **后端**：Rust + 平台脚本（bash / PowerShell）
 - **目标平台**：macOS + Windows（MVP 阶段）
 
-### 2.2 Rust 模块设计
+### 3.2 项目结构
 
 ```
-src-tauri/src/
-├── main.rs              # 入口，命令注册
-├── env.rs               # 环境检测（Node.js、Python、Git、npm、pip、磁盘空间）
-├── installer.rs         # 安装逻辑（调用系统命令）
-├── autofix.rs           # 自动修复缺失环境（brew / winget）
-├── uninstaller.rs       # 卸载已安装工具
-├── updater.rs           # 检测并更新工具
-└── log.rs               # 安装日志收集
+agenthub/
+├── src-tauri/
+│   ├── src/
+│   │   ├── main.rs
+│   │   ├── commands.rs     # Tauri IPC 命令
+│   │   ├── tool.rs        # 工具定义
+│   │   └── runtime.rs     # 脚本执行器
+│   └── scripts/
+│       ├── darwin/
+│       │   └── claude-code.sh
+│       └── windows/
+│           └── claude-code.ps1
+└── frontend/
+    └── index.html
 ```
 
-### 2.3 前端结构
+---
 
-- 单 `index.html` 文件，包含完整 CSS 和 JS
-- 4 步向导：欢迎 → 选择工具 → 环境检测 → 安装进度
-- 与 Rust 后端通过 Tauri IPC（invoke）通信
+## 4. Claude Code 详解
+
+### 4.1 安装方式
+
+**推荐：原生安装脚本**（最简单，支持自动更新）
+
+| 平台 | 命令 |
+|------|------|
+| macOS / Linux | `curl -fsSL https://claude.ai/install.sh \| bash` |
+| Windows PowerShell | `irm https://claude.ai/install.ps1 \| iex` |
+| Windows CMD | `curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd` |
+
+**备选：包管理器**
+
+| 平台 | 命令 |
+|------|------|
+| Homebrew | `brew install --cask claude-code` |
+| WinGet | `winget install Anthropic.ClaudeCode` |
+| npm | `npm install -g @anthropic-ai/claude-code`（需 Node.js 18+） |
+
+### 4.2 环境要求
+
+- **操作系统**：macOS 13.0+ / Windows 10 1809+ / Ubuntu 20.04+
+- **内存**：4GB+
+- **网络**：需要互联网连接
+- **Shell**：Bash, Zsh, PowerShell, CMD
+
+### 4.3 验证安装
+
+```bash
+claude --version
+# 或
+claude doctor
+```
+
+### 4.4 卸载
+
+| 安装方式 | 卸载命令 |
+|---------|---------|
+| 原生安装 | `rm -f ~/.local/bin/claude && rm -rf ~/.local/share/claude`（macOS/Linux）|
+| 原生安装 | Windows: 删除 `$env:USERPROFILE\.local\bin\claude.exe` 和 `$env:USERPROFILE\.local\share\claude` |
+| Homebrew | `brew uninstall --cask claude-code` |
+| WinGet | `winget uninstall Anthropic.ClaudeCode` |
+| npm | `npm uninstall -g @anthropic-ai/claude-code` |
+
+### 4.5 更新
+
+- **原生安装**：自动后台更新
+- **其他方式**：`claude update` 或对应包管理器更新命令
 
 ---
 
-## 3. 安装工具清单
+## 5. 平台脚本设计
 
-| 工具 | 安装命令 | 依赖环境 |
-|------|---------|---------|
-| Claude Code | `npm install -g @anthropic/claude-code` | Node.js 18+ |
-| Codex | `npm install -g openai-codex` | Node.js 18+ |
-| OpenCode | 下载 GitHub release 二进制 + PATH | Go 运行时（可选） |
-| OpenClaw | `pip install openclaw` | Python 3.10+ |
-| HermesAgent | `pip install hermes-agent` | Python 3.10+ |
+### 5.1 脚本接口
 
-**OpenCode 安装方式**：从 GitHub releases 下载对应平台的二进制文件，赋予执行权限后放入 `$PATH` 目录（如 `~/.local/bin`）。
+每个脚本通过 stdout/ stderr 输出日志，退出码表示成功/失败：
+
+```bash
+# 检测是否已安装
+./check.sh
+# 输出: {"installed": true, "version": "2.1.89"}
+
+# 安装
+./install.sh
+# 输出: 实时日志
+# 退出码: 0 成功, 1 失败
+
+# 卸载
+./uninstall.sh
+# 退出码: 0 成功, 1 失败
+
+# 更新
+./update.sh
+# 退出码: 0 成功, 1 失败
+```
+
+### 5.2 macOS 脚本 (claude-code.sh)
+
+```bash
+#!/usr/bin/env bash
+set -e
+
+CMD="$1"
+CLAUDE_BIN="$HOME/.local/bin/claude"
+CLAUDE_DIR="$HOME/.local/share/claude"
+
+case "$CMD" in
+  check)
+    if command -v claude &>/dev/null; then
+      VERSION=$(claude --version 2>/dev/null | head -n1)
+      echo "{\"installed\": true, \"version\": \"$VERSION\"}"
+    else
+      echo "{\"installed\": false}"
+    fi
+    ;;
+  install)
+    echo "Installing Claude Code..."
+    curl -fsSL https://claude.ai/install.sh | bash
+    ;;
+  uninstall)
+    echo "Uninstalling Claude Code..."
+    rm -f "$CLAUDE_BIN"
+    rm -rf "$CLAUDE_DIR"
+    ;;
+  update)
+    claude update
+    ;;
+esac
+```
+
+### 5.3 Windows 脚本 (claude-code.ps1)
+
+```powershell
+param([string]$Cmd)
+
+$ClaudeBin = "$env:USERPROFILE\.local\bin\claude.exe"
+$ClaudeDir = "$env:USERPROFILE\.local\share\claude"
+
+switch ($Cmd) {
+  "check" {
+    if (Get-Command claude -ErrorAction SilentlyContinue) {
+      $Version = claude --version 2>$null | Select-Object -First 1
+      Write-Output "{`"installed`": true, `"version`": `"$Version`"}"
+    } else {
+      Write-Output "{`"installed`": false}"
+    }
+  }
+  "install" {
+    Write-Output "Installing Claude Code..."
+    Invoke-RestMethod https://claude.ai/install.ps1 | Invoke-Expression
+  }
+  "uninstall" {
+    Write-Output "Uninstalling Claude Code..."
+    Remove-Item -Path $ClaudeBin -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $ClaudeDir -Recurse -Force -ErrorAction SilentlyContinue
+  }
+  "update" {
+    claude update
+  }
+}
+```
 
 ---
 
-## 4. 环境检测与自动修复
+## 6. Rust 后端
 
-### 4.1 检测项目
-
-| 检测项 | macOS 检查方式 | Windows 检查方式 |
-|--------|--------------|----------------|
-| Node.js | `node --version` | 同 |
-| npm | `npm --version` | 同 |
-| Python | `python3 --version` | `python --version` |
-| pip | `pip3 --version` | `pip --version` |
-| Git | `git --version` | 同 |
-| 磁盘空间 | `df -h` | `wmic logicaldisk get size,freespace` |
-
-### 4.2 自动修复策略
-
-当检测到环境缺失时，Rust 后端自动调用包管理器安装：
-
-**macOS**（优先使用 Homebrew）：
-- Node.js 缺失 → `brew install node@20`
-- Python 缺失 → `brew install python@3.11`
-- Git 缺失 → `brew install git`
-
-**Windows**（优先使用 Winget）：
-- Node.js 缺失 → `winget install OpenJS.NodeJS.LTS`
-- Python 缺失 → `winget install Python.Python.3.11`
-- Git 缺失 → `winget install Git.Git`
-
-**安装顺序**：先安装环境依赖，再安装工具本身。
-
-### 4.3 重试与错误处理
-
-- 网络请求超时：重试 3 次，每次间隔 5 秒
-- 权限不足：提示用户以管理员/sudo 权限重试
-- 安装失败：记录错误日志，向前端返回友好错误信息
-
----
-
-## 5. 卸载与更新
-
-### 5.1 卸载
-
-| 工具 | 卸载命令 |
-|------|---------|
-| Claude Code | `npm uninstall -g @anthropic/claude-code` |
-| Codex | `npm uninstall -g openai-codex` |
-| OpenCode | 删除二进制文件 + 从 PATH 移除 |
-| OpenClaw | `pip uninstall openclaw` |
-| HermesAgent | `pip uninstall hermes-agent` |
-
-### 5.2 更新
-
-- 检测已安装版本：`npm list -g --depth=0` / `pip list`
-- 与最新版本对比
-- 执行更新：`npm update -g <pkg>` / `pip install --upgrade <pkg>` / 下载新二进制
-
----
-
-## 6. 前端交互流程
-
-沿用原型图的 4 步向导设计：
-
-1. **欢迎页**：介绍功能，展示可安装工具列表
-2. **选择工具**：卡片式多选界面
-3. **环境检测**：实时检测，缺失项高亮，支持"自动修复"按钮
-4. **安装进度**：每个工具独立进度条 + 实时日志 + 完成后操作指引
-
----
-
-## 7. 多平台条件编译
+### 6.1 Tauri IPC 命令
 
 ```rust
-#[cfg(target_os = "macos")]
-fn install_nodejs() { /* brew install */ }
+#[tauri::command]
+fn check_claude_code() -> Result<InstallState, String>;
 
-#[cfg(target_os = "windows")]
-fn install_nodejs() { /* winget install */ }
+#[tauri::command]
+fn install_claude_code(window: Window) -> Result<(), InstallError>;
+
+#[tauri::command]
+fn uninstall_claude_code() -> Result<(), UninstallError>;
+
+#[tauri::command]
+fn update_claude_code() -> Result<(), UpdateError>;
+```
+
+### 6.2 InstallState 结构
+
+```rust
+struct InstallState {
+    installed: bool,
+    version: Option<String>,
+    install_method: Option<String>, // "native" | "homebrew" | "winget" | "npm"
+}
 ```
 
 ---
 
-## 8. 暂不在 MVP 范围的功能
+## 7. 前端交互流程
 
-- API 密钥配置（安装后由用户自行配置）
-- Linux 支持
-- 工具的深度配置（如自定义模型端点）
+沿用原型图设计，4 步向导：
+
+1. **欢迎页**：介绍功能
+2. **选择工具**：目前只有 Claude Code 一个选项（后续扩展）
+3. **环境检测**：检测 Claude Code 是否已安装，显示版本
+4. **安装进度**：显示安装/卸载/更新进度和日志
+
+---
+
+## 8. 错误处理
+
+| 错误类型 | 处理方式 |
+|---------|---------|
+| 网络超时 | 重试 3 次，间隔 5s |
+| 权限不足 | 提示用户以管理员/sudo 运行 |
+| 安装失败 | 显示错误日志 |
+| 验证失败 | 提示重新尝试 |
