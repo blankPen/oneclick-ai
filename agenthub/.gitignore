@@ -1,0 +1,15 @@
+# Build output
+target/
+
+# Tauri generated schemas (auto-generated during build)
+src-tauri/gen/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

@@ -66,6 +66,7 @@ mod tests {
     async fn test_check_claude_code_returns_valid_json() {
         let result = check_claude_code().await;
         // Returns JSON like {"installed": false} or {"installed": true, "version": "..."}
-        assert!(result.contains("installed"));
+        let output = result.expect("check_claude_code should succeed");
+        assert!(output.contains("installed"));
     }
 }
