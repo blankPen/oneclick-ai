@@ -1,4 +1,6 @@
+mod runtime;
 mod tool;
+pub use runtime::*;
 pub use tool::*;
 
 pub fn run() {
