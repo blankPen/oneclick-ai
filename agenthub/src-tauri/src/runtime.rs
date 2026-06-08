@@ -12,9 +12,9 @@ fn get_script_path(tool_id: &str, _cmd: &str) -> String {
     format!("{}/{}/{}.{}", env!("CARGO_MANIFEST_DIR"), PLATFORM_SCRIPT_DIR, tool_id, ext)
 }
 
-pub async fn check_claude_code() -> String {
+pub async fn check_claude_code() -> Result<String, String> {
     let script = get_script_path("claude-code", "check");
-    run_script(&script, "check").await.unwrap_or_default()
+    run_script(&script, "check").await
 }
 
 pub async fn install_claude_code() -> Result<String, String> {
@@ -52,6 +52,7 @@ async fn run_script(script_path: &str, _cmd: &str) -> Result<String, String> {
 
     if !output.status.success() {
         error!("Script failed: {}", stderr);
+        return Err(stderr);
     }
 
     Ok(stdout.trim().to_string())
