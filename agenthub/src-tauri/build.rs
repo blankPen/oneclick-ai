@@ -1,6 +1,6 @@
 fn main() {
     tauri_build::build();
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
         let scripts_dir = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
             .join("scripts/darwin");
