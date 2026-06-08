@@ -1,0 +1,1166 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentHub — AI 工具一键安装</title>
+<style>
+/* ─── OpenCode Design System Tokens ────────────────────────────── */
+:root {
+  /* Surface */
+  --bg: #201d1d;
+  --surface: #2a2626;
+  --surface-raised: #302c2c;
+  --surface-card: #2d2929;
+
+  /* Foreground */
+  --fg: #fdfcfc;
+  --fg-2: #c8c6c4;
+  --muted: #9a9898;
+  --meta: #6e6e73;
+
+  /* Borders */
+  --border: #464343;
+  --border-soft: #302c2c;
+
+  /* Accent — warmer amber instead of pure blue for friendlier feel */
+  --accent: #ff9f0a;
+  --accent-dim: rgba(255, 159, 10, 0.15);
+  --accent-on: #201d1d;
+
+  /* Semantic */
+  --blue: #007aff;
+  --success: #30d158;
+  --success-dim: rgba(48, 209, 88, 0.15);
+  --warn: #ff9f0a;
+  --danger: #ff3b30;
+  --danger-dim: rgba(255, 59, 48, 0.15);
+  --info: #64d2ff;
+
+  /* Typography — Berkeley Mono only */
+  --font: "Berkeley Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Spacing */
+  --sp1: 4px; --sp2: 8px; --sp3: 12px; --sp4: 16px;
+  --sp5: 20px; --sp6: 24px; --sp8: 32px; --sp10: 40px;
+  --sp12: 48px; --sp16: 64px;
+
+  /* Radius — slightly more generous than stock OpenCode for friendliness */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+
+  /* Motion */
+  --fast: 100ms;
+  --base: 200ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ─── Reset & Base ──────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── App Shell ─────────────────────────────────────────────────── */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ─── Title Bar (macOS style) ───────────────────────────────────── */
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp3);
+  padding: 12px var(--sp6);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-soft);
+  -webkit-app-region: drag;
+  user-select: none;
+  flex-shrink: 0;
+}
+.titlebar-dots { display: flex; gap: 6px; }
+.dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: filter var(--fast) var(--ease);
+}
+.dot:hover { filter: brightness(1.2); }
+.dot-red   { background: #ff5f57; }
+.dot-yellow{ background: #febc2e; }
+.dot-green { background: #28c840; }
+.titlebar-title {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+/* ─── Step Bar ──────────────────────────────────────────────────── */
+.stepbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: var(--sp4) var(--sp8);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+}
+.step-dot {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1.5px solid var(--border);
+  color: var(--muted);
+  background: transparent;
+  transition: all var(--base) var(--ease);
+  flex-shrink: 0;
+}
+.step-dot.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-on);
+}
+.step-dot.done {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
+}
+.step-label {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: color var(--base) var(--ease);
+}
+.step-label.active { color: var(--accent); font-weight: 600; }
+.step-label.done   { color: var(--success); }
+.step-connector {
+  width: 48px; height: 1.5px;
+  background: var(--border);
+  margin: 0 var(--sp3);
+  flex-shrink: 0;
+  transition: background var(--base) var(--ease);
+}
+.step-connector.done { background: var(--success); }
+
+/* ─── Main Content ──────────────────────────────────────────────── */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--sp12) var(--sp6);
+}
+.screen {
+  display: none;
+  width: 100%;
+  max-width: 640px;
+  flex-direction: column;
+  gap: var(--sp8);
+  animation: fadeIn var(--base) var(--ease);
+}
+.screen.active {
+  display: flex;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Screen Header ─────────────────────────────────────────────── */
+.screen-header { display: flex; flex-direction: column; gap: var(--sp2); }
+.screen-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.screen-title {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--fg);
+}
+.screen-desc {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.6;
+  max-width: 480px;
+}
+
+/* ─── Card ─────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--sp6);
+}
+
+/* ─── Buttons ───────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: var(--sp2);
+  padding: 10px var(--sp6);
+  border-radius: var(--r-sm);
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all var(--fast) var(--ease);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-on);
+}
+.btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { color: var(--fg); border-color: var(--fg-2); }
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+.btn-lg { padding: 14px var(--sp10); font-size: 16px; }
+
+/* ─── Footer Nav ───────────────────────────────────────────────── */
+.footer-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--sp4) var(--sp8);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+ * SCREEN 1 — WELCOME
+ * ─────────────────────────────────────────────────────────────────*/
+.welcome-hero {
+  text-align: center;
+  padding: var(--sp12) 0 var(--sp8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp4);
+}
+.logo-mark {
+  width: 72px; height: 72px;
+  background: var(--accent-dim);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--r-lg);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px;
+  margin-bottom: var(--sp2);
+}
+.welcome-title {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--fg);
+}
+.welcome-subtitle {
+  font-size: 15px;
+  color: var(--muted);
+  max-width: 400px;
+  line-height: 1.7;
+}
+.features-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp4);
+}
+.feature-chip {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp4) var(--sp4);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+}
+.feature-chip-icon { font-size: 20px; }
+.feature-chip-label { font-size: 12px; color: var(--fg-2); font-weight: 500; }
+.feature-chip-desc { font-size: 11px; color: var(--meta); line-height: 1.5; }
+
+/* ─────────────────────────────────────────────────────────────────
+ * SCREEN 2 — TOOL PICKER
+ * ─────────────────────────────────────────────────────────────────*/
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sp4);
+}
+.tool-card {
+  background: var(--surface-card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--sp5);
+  cursor: pointer;
+  transition: all var(--base) var(--ease);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+}
+.tool-card:hover {
+  border-color: var(--accent);
+  background: var(--surface-raised);
+  transform: translateY(-2px);
+}
+.tool-card.selected {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.tool-card.selected .tool-check {
+  opacity: 1;
+  background: var(--accent);
+}
+.tool-check {
+  position: absolute;
+  top: var(--sp3); right: var(--sp3);
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  color: var(--accent-on);
+  opacity: 0;
+  transition: all var(--fast) var(--ease);
+}
+.tool-card:hover .tool-check { opacity: 0.4; }
+.tool-card.selected .tool-check { opacity: 1; }
+.tool-icon-wrap {
+  width: 40px; height: 40px;
+  border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.tool-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--fg);
+}
+.tool-badge {
+  display: inline-flex; align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: var(--sp2);
+}
+.badge-blue { background: rgba(0,122,255,0.15); color: var(--blue); }
+.badge-orange { background: var(--accent-dim); color: var(--accent); }
+.badge-green { background: var(--success-dim); color: var(--success); }
+.tool-desc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.tool-meta {
+  display: flex;
+  gap: var(--sp3);
+  margin-top: auto;
+  padding-top: var(--sp2);
+  border-top: 1px solid var(--border-soft);
+}
+.tool-meta-item {
+  font-size: 11px;
+  color: var(--meta);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.selection-hint {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+.selection-count {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+ * SCREEN 3 — ENV CHECK
+ * ─────────────────────────────────────────────────────────────────*/
+.env-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+}
+.env-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp4);
+  padding: var(--sp4) var(--sp5);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  transition: all var(--base) var(--ease);
+}
+.env-icon {
+  font-size: 18px;
+  width: 32px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.env-info { flex: 1; }
+.env-name { font-size: 13px; font-weight: 600; color: var(--fg); }
+.env-detail { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.env-status {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+  font-size: 12px;
+  font-weight: 600;
+}
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-checking .status-dot { background: var(--warn); animation: pulse 1s infinite; }
+.status-ok .status-dot { background: var(--success); }
+.status-fail .status-dot { background: var(--danger); }
+.status-checking { color: var(--warn); }
+.status-ok { color: var(--success); }
+.status-fail { color: var(--danger); }
+.env-item.status-fail {
+  border-color: rgba(255,59,48,0.3);
+  background: var(--danger-dim);
+}
+.env-item.status-ok {
+  border-color: rgba(48,209,88,0.2);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.fix-hint {
+  display: none;
+  margin-top: var(--sp2);
+  padding: var(--sp3);
+  background: rgba(255,59,48,0.08);
+  border: 1px solid rgba(255,59,48,0.2);
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  color: var(--fg-2);
+  line-height: 1.6;
+}
+.env-item.status-fail .fix-hint { display: block; }
+
+.env-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp4);
+  padding: var(--sp4) var(--sp5);
+  background: var(--success-dim);
+  border: 1px solid rgba(48,209,88,0.25);
+  border-radius: var(--r-md);
+  font-size: 13px;
+  color: var(--success);
+  font-weight: 600;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+ * SCREEN 4 — INSTALL PROGRESS
+ * ─────────────────────────────────────────────────────────────────*/
+.install-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+}
+.install-tools-row {
+  display: flex;
+  gap: var(--sp2);
+  flex-wrap: wrap;
+}
+.install-tool-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 12px;
+  color: var(--fg-2);
+}
+
+.progress-section { display: flex; flex-direction: column; gap: var(--sp4); }
+.progress-tool {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.progress-tool-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp3);
+  padding: var(--sp4) var(--sp5);
+  border-bottom: 1px solid var(--border-soft);
+}
+.progress-tool-name { font-size: 13px; font-weight: 600; flex: 1; }
+.progress-tool-status { font-size: 12px; }
+.progress-bar-wrap {
+  padding: var(--sp3) var(--sp5) var(--sp4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+}
+.progress-bar-track {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width 0.4s var(--ease);
+}
+.progress-bar-fill.done { background: var(--success); }
+.progress-step-label { font-size: 11px; color: var(--meta); }
+
+.log-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp4) var(--sp5);
+  max-height: 160px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.log-line {
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted);
+  display: flex;
+  gap: var(--sp3);
+}
+.log-time { color: var(--meta); flex-shrink: 0; }
+.log-ok    { color: var(--success); }
+.log-warn  { color: var(--warn); }
+.log-info  { color: var(--info); }
+
+.success-banner {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--sp4);
+  padding: var(--sp10);
+  background: var(--success-dim);
+  border: 1px solid rgba(48,209,88,0.25);
+  border-radius: var(--r-lg);
+}
+.success-banner.show { display: flex; animation: fadeIn var(--base) var(--ease); }
+.success-icon { font-size: 40px; }
+.success-title { font-size: 20px; font-weight: 700; color: var(--success); }
+.success-desc  { font-size: 13px; color: var(--muted); line-height: 1.6; }
+.success-actions { display: flex; gap: var(--sp3); }
+
+/* ─── Selected tools display on screen 3/4 ─────────────────────── */
+.selected-tools-label {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: var(--sp2);
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- macOS Title Bar -->
+  <div class="titlebar">
+    <div class="titlebar-dots">
+      <div class="dot dot-red"></div>
+      <div class="dot dot-yellow"></div>
+      <div class="dot dot-green"></div>
+    </div>
+    <div class="titlebar-title">AgentHub — AI 工具安装助手</div>
+  </div>
+
+  <!-- Step Bar -->
+  <div class="stepbar">
+    <div class="step-item">
+      <div class="step-dot active" id="sdot-1">1</div>
+      <span class="step-label active" id="slabel-1">欢迎</span>
+    </div>
+    <div class="step-connector" id="scon-1"></div>
+    <div class="step-item">
+      <div class="step-dot" id="sdot-2">2</div>
+      <span class="step-label" id="slabel-2">选择工具</span>
+    </div>
+    <div class="step-connector" id="scon-2"></div>
+    <div class="step-item">
+      <div class="step-dot" id="sdot-3">3</div>
+      <span class="step-label" id="slabel-3">环境检测</span>
+    </div>
+    <div class="step-connector" id="scon-3"></div>
+    <div class="step-item">
+      <div class="step-dot" id="sdot-4">4</div>
+      <span class="step-label" id="slabel-4">安装</span>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="content">
+
+    <!-- ── SCREEN 1: WELCOME ─────────────────────────────────── -->
+    <div class="screen active" id="screen-1" data-od-id="s1-welcome">
+      <div class="welcome-hero">
+        <div class="logo-mark">🤖</div>
+        <div class="welcome-title">欢迎使用 AgentHub</div>
+        <div class="welcome-subtitle">
+          五分钟内，帮你安装好 AI 编程助手。<br>
+          不需要任何编程基础，跟着向导一步步来。
+        </div>
+      </div>
+
+      <div class="features-row">
+        <div class="feature-chip">
+          <div class="feature-chip-icon">🚀</div>
+          <div class="feature-chip-label">一键安装</div>
+          <div class="feature-chip-desc">自动处理所有依赖和配置</div>
+        </div>
+        <div class="feature-chip">
+          <div class="feature-chip-icon">🔍</div>
+          <div class="feature-chip-label">智能检测</div>
+          <div class="feature-chip-desc">自动检测你的系统环境</div>
+        </div>
+        <div class="feature-chip">
+          <div class="feature-chip-icon">🛡️</div>
+          <div class="feature-chip-label">安全可信</div>
+          <div class="feature-chip-desc">只从官方渠道下载安装</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; align-items:center; gap:var(--sp3); margin-bottom:var(--sp4);">
+          <div style="font-size:16px;">📦</div>
+          <div style="font-size:13px; font-weight:600; color:var(--fg);">可安装的 AI 工具</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:var(--sp2);">
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:var(--sp2) 0; border-bottom:1px solid var(--border-soft);">
+            <div style="font-size:13px; color:var(--fg-2); display:flex; align-items:center; gap:var(--sp2);">
+              <span>⚡</span> Claude Code
+            </div>
+            <span style="font-size:11px; color:var(--meta);">Anthropic 官方</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:var(--sp2) 0; border-bottom:1px solid var(--border-soft);">
+            <div style="font-size:13px; color:var(--fg-2); display:flex; align-items:center; gap:var(--sp2);">
+              <span>🌐</span> OpenAI Codex
+            </div>
+            <span style="font-size:11px; color:var(--meta);">OpenAI 官方</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:var(--sp2) 0; border-bottom:1px solid var(--border-soft);">
+            <div style="font-size:13px; color:var(--fg-2); display:flex; align-items:center; gap:var(--sp2);">
+              <span>💻</span> OpenCode
+            </div>
+            <span style="font-size:11px; color:var(--meta);">开源社区</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:var(--sp2) 0; border-bottom:1px solid var(--border-soft);">
+            <div style="font-size:13px; color:var(--fg-2); display:flex; align-items:center; gap:var(--sp2);">
+              <span>🐾</span> OpenClaw
+            </div>
+            <span style="font-size:11px; color:var(--meta);">开源社区</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:var(--sp2) 0;">
+            <div style="font-size:13px; color:var(--fg-2); display:flex; align-items:center; gap:var(--sp2);">
+              <span>🦾</span> HermesAgent
+            </div>
+            <span style="font-size:11px; color:var(--meta);">开源社区</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align:center; font-size:12px; color:var(--meta);">
+        支持 macOS 12+ 和 Windows 10+  ·  安装过程约 3–8 分钟
+      </div>
+    </div>
+
+    <!-- ── SCREEN 2: TOOL PICKER ──────────────────────────────── -->
+    <div class="screen" id="screen-2" data-od-id="s2-tools">
+      <div class="screen-header">
+        <div class="screen-eyebrow">第 2 步 / 共 4 步</div>
+        <div class="screen-title">你想安装哪些工具？</div>
+        <div class="screen-desc">可以同时选多个，安装助手会依次帮你搞定。每个工具都有说明，挑自己需要的就好。</div>
+      </div>
+
+      <div class="tool-grid">
+
+        <!-- Claude Code -->
+        <div class="tool-card" onclick="toggleTool(this, 'claude-code')">
+          <div class="tool-check">✓</div>
+          <div style="display:flex; align-items:center; gap:var(--sp3);">
+            <div class="tool-icon-wrap">⚡</div>
+            <div>
+              <div class="tool-name">Claude Code
+                <span class="tool-badge badge-blue">热门</span>
+              </div>
+            </div>
+          </div>
+          <div class="tool-desc">Anthropic 官方出品的 AI 编程助手，直接在终端里用，理解代码上下文超厉害。适合想提升编程效率的人。</div>
+          <div class="tool-meta">
+            <div class="tool-meta-item">⚙️ Node.js</div>
+            <div class="tool-meta-item">📦 npm install</div>
+          </div>
+        </div>
+
+        <!-- Codex -->
+        <div class="tool-card" onclick="toggleTool(this, 'codex')">
+          <div class="tool-check">✓</div>
+          <div style="display:flex; align-items:center; gap:var(--sp3);">
+            <div class="tool-icon-wrap">🌐</div>
+            <div>
+              <div class="tool-name">OpenAI Codex
+                <span class="tool-badge badge-orange">新</span>
+              </div>
+            </div>
+          </div>
+          <div class="tool-desc">OpenAI 推出的 AI 编程 Agent，支持多步骤任务，可以帮你写代码、跑测试、修 bug，能力全面。</div>
+          <div class="tool-meta">
+            <div class="tool-meta-item">⚙️ Node.js</div>
+            <div class="tool-meta-item">📦 npm install</div>
+          </div>
+        </div>
+
+        <!-- OpenCode -->
+        <div class="tool-card" onclick="toggleTool(this, 'opencode')">
+          <div class="tool-check">✓</div>
+          <div style="display:flex; align-items:center; gap:var(--sp3);">
+            <div class="tool-icon-wrap">💻</div>
+            <div>
+              <div class="tool-name">OpenCode</div>
+            </div>
+          </div>
+          <div class="tool-desc">开源的 AI 编程助手，类似 Claude Code 但完全免费。界面简洁，支持多个 AI 模型，技术社区很活跃。</div>
+          <div class="tool-meta">
+            <div class="tool-meta-item">⚙️ Go 运行时</div>
+            <div class="tool-meta-item">📦 二进制安装</div>
+          </div>
+        </div>
+
+        <!-- OpenClaw -->
+        <div class="tool-card" onclick="toggleTool(this, 'openclaw')">
+          <div class="tool-check">✓</div>
+          <div style="display:flex; align-items:center; gap:var(--sp3);">
+            <div class="tool-icon-wrap">🐾</div>
+            <div>
+              <div class="tool-name">OpenClaw</div>
+            </div>
+          </div>
+          <div class="tool-desc">轻量级 AI Agent 框架，专注于任务自动化。适合想让 AI 帮你处理重复工作流的用户，可扩展性强。</div>
+          <div class="tool-meta">
+            <div class="tool-meta-item">⚙️ Python 3.10+</div>
+            <div class="tool-meta-item">📦 pip install</div>
+          </div>
+        </div>
+
+        <!-- HermesAgent -->
+        <div class="tool-card" onclick="toggleTool(this, 'hermes')">
+          <div class="tool-check">✓</div>
+          <div style="display:flex; align-items:center; gap:var(--sp3);">
+            <div class="tool-icon-wrap">🦾</div>
+            <div>
+              <div class="tool-name">HermesAgent
+                <span class="tool-badge badge-green">稳定</span>
+              </div>
+            </div>
+          </div>
+          <div class="tool-desc">多 Agent 协作框架，可以让多个 AI 分工合作完成复杂任务。适合需要 AI 处理长流程工作的场景。</div>
+          <div class="tool-meta">
+            <div class="tool-meta-item">⚙️ Python 3.10+</div>
+            <div class="tool-meta-item">📦 pip install</div>
+          </div>
+        </div>
+
+        <!-- Placeholder for 6th slot alignment -->
+        <div style="display:flex; align-items:center; justify-content:center; padding:var(--sp6); background:var(--surface-card); border:1.5px dashed var(--border); border-radius:var(--r-lg); color:var(--meta); font-size:12px; text-align:center; line-height:1.6;">
+          更多工具<br>即将上线
+        </div>
+      </div>
+
+      <div class="selection-hint">
+        已选择 <span class="selection-count" id="sel-count">0</span> 个工具
+      </div>
+    </div>
+
+    <!-- ── SCREEN 3: ENV CHECK ────────────────────────────────── -->
+    <div class="screen" id="screen-3" data-od-id="s3-env">
+      <div class="screen-header">
+        <div class="screen-eyebrow">第 3 步 / 共 4 步</div>
+        <div class="screen-title">检测安装环境</div>
+        <div class="screen-desc">正在检查你的电脑上有没有安装必要的基础工具。有问题的话我们会告诉你怎么修复。</div>
+      </div>
+
+      <div class="env-list" id="env-list">
+
+        <div class="env-item status-ok" id="env-node">
+          <div class="env-icon">⬡</div>
+          <div class="env-info">
+            <div class="env-name">Node.js</div>
+            <div class="env-detail">Claude Code、Codex 需要 Node.js 18+</div>
+            <div class="fix-hint">
+              未检测到 Node.js。请前往 <strong>nodejs.org</strong> 下载安装，选"LTS（推荐）"版本即可，安装完成后点"重新检测"。
+            </div>
+          </div>
+          <div class="env-status status-ok">
+            <div class="status-dot"></div>
+            <span id="node-status-text">v20.11.0 ✓</span>
+          </div>
+        </div>
+
+        <div class="env-item status-fail" id="env-python">
+          <div class="env-icon">🐍</div>
+          <div class="env-info">
+            <div class="env-name">Python</div>
+            <div class="env-detail">OpenClaw、HermesAgent 需要 Python 3.10+</div>
+            <div class="fix-hint">
+              未检测到 Python 3.10 或更高版本。请前往 <strong>python.org/downloads</strong>，下载最新版安装包，勾选"Add Python to PATH"再安装。
+            </div>
+          </div>
+          <div class="env-status status-fail">
+            <div class="status-dot"></div>
+            <span>未安装</span>
+          </div>
+        </div>
+
+        <div class="env-item status-ok" id="env-git">
+          <div class="env-icon">🌿</div>
+          <div class="env-info">
+            <div class="env-name">Git</div>
+            <div class="env-detail">下载源码和更新工具时需要</div>
+            <div class="fix-hint">
+              未检测到 Git。请前往 <strong>git-scm.com</strong> 下载安装，一路点"Next"即可。
+            </div>
+          </div>
+          <div class="env-status status-ok">
+            <div class="status-dot"></div>
+            <span>v2.44.0 ✓</span>
+          </div>
+        </div>
+
+        <div class="env-item status-ok" id="env-npm">
+          <div class="env-icon">📦</div>
+          <div class="env-info">
+            <div class="env-name">npm</div>
+            <div class="env-detail">Node.js 包管理器，随 Node.js 一起安装</div>
+            <div class="fix-hint">npm 通常随 Node.js 自动安装，请先检查 Node.js 是否正确安装。</div>
+          </div>
+          <div class="env-status status-ok">
+            <div class="status-dot"></div>
+            <span>v10.2.4 ✓</span>
+          </div>
+        </div>
+
+        <div class="env-item status-ok" id="env-disk">
+          <div class="env-icon">💾</div>
+          <div class="env-info">
+            <div class="env-name">磁盘空间</div>
+            <div class="env-detail">所选工具共需约 800MB 空间</div>
+            <div class="fix-hint">可用磁盘空间不足。请清理一些文件后重试。</div>
+          </div>
+          <div class="env-status status-ok">
+            <div class="status-dot"></div>
+            <span>47.2 GB 可用 ✓</span>
+          </div>
+        </div>
+
+      </div>
+
+      <div id="env-warning" style="display:flex; align-items:flex-start; gap:var(--sp3); padding:var(--sp4) var(--sp5); background:var(--danger-dim); border:1px solid rgba(255,59,48,0.2); border-radius:var(--r-md); font-size:13px; color:var(--fg-2);">
+        <span style="font-size:16px; flex-shrink:0;">⚠️</span>
+        <div>
+          <strong style="color:var(--danger);">检测到 1 个问题</strong>需要处理。
+          安装部分工具可能会失败。你可以先修复后重新检测，或者点"继续"跳过（仅安装兼容的工具）。
+        </div>
+      </div>
+
+      <div style="display:flex; gap:var(--sp3);">
+        <button class="btn btn-ghost" onclick="recheck()">🔄 重新检测</button>
+      </div>
+    </div>
+
+    <!-- ── SCREEN 4: INSTALL PROGRESS ─────────────────────────── -->
+    <div class="screen" id="screen-4" data-od-id="s4-install">
+      <div class="screen-header">
+        <div class="screen-eyebrow">第 4 步 / 共 4 步</div>
+        <div class="screen-title">正在安装</div>
+        <div class="screen-desc">
+          <span id="install-tool-chips"></span>
+        </div>
+      </div>
+
+      <div class="progress-section" id="progress-section">
+        <!-- Filled by JS -->
+      </div>
+
+      <div class="card" style="padding:var(--sp3) var(--sp4);">
+        <div style="font-size:11px; color:var(--meta); margin-bottom:var(--sp2); font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">安装日志</div>
+        <div class="log-box" id="log-box"></div>
+      </div>
+
+      <div class="success-banner" id="success-banner">
+        <div class="success-icon">🎉</div>
+        <div class="success-title">全部安装完成！</div>
+        <div class="success-desc">
+          你选择的 AI 工具已经成功安装。<br>
+          打开终端，按照各工具的快速入门指南开始使用吧。
+        </div>
+        <div class="success-actions">
+          <button class="btn btn-primary" onclick="openDocs()">📖 查看使用指南</button>
+          <button class="btn btn-ghost" onclick="restartApp()">重新开始</button>
+        </div>
+      </div>
+
+    </div>
+
+  </div><!-- end .content -->
+
+  <!-- Footer Nav -->
+  <div class="footer-nav">
+    <button class="btn btn-ghost" id="btn-back" onclick="prevStep()" style="visibility:hidden;">← 上一步</button>
+    <div style="font-size:12px; color:var(--meta);" id="footer-hint"></div>
+    <button class="btn btn-primary" id="btn-next" onclick="nextStep()">开始 →</button>
+  </div>
+
+</div><!-- end .app -->
+
+<script>
+/* ─── State ─────────────────────────────────────────────────────── */
+let currentStep = 1;
+const totalSteps = 4;
+const selectedTools = new Set();
+
+const TOOLS = {
+  'claude-code': { name: 'Claude Code', icon: '⚡', steps: ['检查 Node.js 环境', '通过 npm 安装', '配置 API 密钥', '验证安装'], duration: [800, 2400, 1200, 600] },
+  'codex':       { name: 'OpenAI Codex', icon: '🌐', steps: ['检查 Node.js 环境', '下载 Codex CLI', '初始化配置', '验证安装'], duration: [600, 2000, 1000, 600] },
+  'opencode':    { name: 'OpenCode', icon: '💻', steps: ['下载二进制文件', '验证签名', '配置 PATH', '验证安装'], duration: [1800, 800, 400, 400] },
+  'openclaw':    { name: 'OpenClaw', icon: '🐾', steps: ['检查 Python 环境', '创建虚拟环境', 'pip install openclaw', '验证安装'], duration: [600, 1000, 1600, 400] },
+  'hermes':      { name: 'HermesAgent', icon: '🦾', steps: ['检查 Python 环境', '安装依赖包', '配置代理链接', '验证安装'], duration: [600, 2200, 800, 400] },
+};
+
+/* ─── Tool toggle ───────────────────────────────────────────────── */
+function toggleTool(card, toolId) {
+  if (selectedTools.has(toolId)) {
+    selectedTools.delete(toolId);
+    card.classList.remove('selected');
+  } else {
+    selectedTools.add(toolId);
+    card.classList.add('selected');
+  }
+  document.getElementById('sel-count').textContent = selectedTools.size;
+  updateNextBtn();
+}
+
+/* ─── Step navigation ───────────────────────────────────────────── */
+function updateUI() {
+  // Screens
+  for (let i = 1; i <= totalSteps; i++) {
+    document.getElementById(`screen-${i}`).classList.toggle('active', i === currentStep);
+  }
+  // Step dots
+  for (let i = 1; i <= totalSteps; i++) {
+    const dot   = document.getElementById(`sdot-${i}`);
+    const label = document.getElementById(`slabel-${i}`);
+    dot.classList.remove('active', 'done');
+    label.classList.remove('active', 'done');
+    if (i < currentStep)       { dot.classList.add('done'); label.classList.add('done'); dot.textContent = '✓'; }
+    else if (i === currentStep){ dot.classList.add('active'); label.classList.add('active'); dot.textContent = i; }
+    else                       { dot.textContent = i; }
+  }
+  // Connectors
+  for (let i = 1; i <= totalSteps - 1; i++) {
+    const con = document.getElementById(`scon-${i}`);
+    if (con) con.classList.toggle('done', i < currentStep);
+  }
+  // Back button
+  document.getElementById('btn-back').style.visibility = currentStep > 1 ? 'visible' : 'hidden';
+  // Next button
+  updateNextBtn();
+}
+
+function updateNextBtn() {
+  const btn = document.getElementById('btn-next');
+  const hint = document.getElementById('footer-hint');
+  if (currentStep === 1) { btn.textContent = '开始选工具 →'; hint.textContent = ''; }
+  else if (currentStep === 2) {
+    btn.textContent = selectedTools.size > 0 ? `检测环境 (${selectedTools.size} 个工具) →` : '请先选择工具';
+    btn.disabled = selectedTools.size === 0;
+    btn.style.opacity = selectedTools.size === 0 ? '0.5' : '1';
+    hint.textContent = '';
+  }
+  else if (currentStep === 3) { btn.textContent = '开始安装 →'; btn.disabled = false; btn.style.opacity = '1'; hint.textContent = 'Python 未安装的工具将跳过'; }
+  else if (currentStep === 4) { btn.textContent = '完成'; btn.disabled = true; btn.style.opacity = '0.5'; hint.textContent = ''; }
+}
+
+function nextStep() {
+  if (currentStep === 2 && selectedTools.size === 0) return;
+  if (currentStep === totalSteps) return;
+  currentStep++;
+  updateUI();
+  if (currentStep === 4) startInstall();
+}
+
+function prevStep() {
+  if (currentStep > 1) { currentStep--; updateUI(); }
+}
+
+/* ─── Recheck env ───────────────────────────────────────────────── */
+function recheck() {
+  // Simulate re-check: fix Python
+  const pyItem = document.getElementById('env-python');
+  pyItem.className = 'env-item status-checking';
+  setTimeout(() => {
+    pyItem.className = 'env-item status-ok';
+    pyItem.querySelector('.env-status').className = 'env-status status-ok';
+    pyItem.querySelector('.env-status').innerHTML = '<div class="status-dot"></div><span>v3.11.8 ✓</span>';
+    document.getElementById('env-warning').style.display = 'none';
+  }, 1800);
+}
+
+/* ─── Install simulation ────────────────────────────────────────── */
+function buildInstallUI() {
+  const tools = [...selectedTools];
+  // Chips
+  const chips = tools.map(id => `<span class="install-tool-chip">${TOOLS[id].icon} ${TOOLS[id].name}</span>`).join('');
+  document.getElementById('install-tool-chips').innerHTML = `正在安装：${chips}`;
+  // Progress cards
+  const section = document.getElementById('progress-section');
+  section.innerHTML = tools.map(id => {
+    const t = TOOLS[id];
+    return `
+    <div class="progress-tool" id="pt-${id}">
+      <div class="progress-tool-header">
+        <span style="font-size:16px;">${t.icon}</span>
+        <span class="progress-tool-name">${t.name}</span>
+        <span class="progress-tool-status" id="pts-${id}" style="color:var(--warn);">等待中…</span>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-track"><div class="progress-bar-fill" id="pb-${id}" style="width:0%"></div></div>
+        <div class="progress-step-label" id="psl-${id}">—</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function addLog(text, type = '') {
+  const box = document.getElementById('log-box');
+  const now = new Date();
+  const ts = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="log-time">${ts}</span><span class="${type ? 'log-'+type : ''}">${text}</span>`;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+async function installTool(id) {
+  const t = TOOLS[id];
+  const statusEl = document.getElementById(`pts-${id}`);
+  const barEl    = document.getElementById(`pb-${id}`);
+  const labelEl  = document.getElementById(`psl-${id}`);
+  statusEl.textContent = '安装中…';
+  statusEl.style.color = 'var(--warn)';
+  addLog(`[${t.name}] 开始安装…`, 'info');
+  for (let si = 0; si < t.steps.length; si++) {
+    labelEl.textContent = t.steps[si];
+    addLog(`[${t.name}] ${t.steps[si]}`, '');
+    await sleep(t.duration[si]);
+    const pct = Math.round((si + 1) / t.steps.length * 100);
+    barEl.style.width = pct + '%';
+  }
+  barEl.classList.add('done');
+  statusEl.textContent = '✓ 完成';
+  statusEl.style.color = 'var(--success)';
+  addLog(`[${t.name}] 安装成功 ✓`, 'ok');
+}
+
+async function startInstall() {
+  if (selectedTools.size === 0) return;
+  buildInstallUI();
+  addLog('开始安装流程…', 'info');
+  const tools = [...selectedTools];
+  for (const id of tools) {
+    await installTool(id);
+  }
+  addLog('全部安装完成 🎉', 'ok');
+  setTimeout(() => {
+    document.getElementById('success-banner').classList.add('show');
+    const btn = document.getElementById('btn-next');
+    btn.textContent = '完成 ✓';
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.onclick = restartApp;
+  }, 600);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function openDocs() {
+  addLog('正在打开使用指南…', 'info');
+}
+
+function restartApp() {
+  currentStep = 1;
+  selectedTools.clear();
+  document.getElementById('sel-count').textContent = '0';
+  document.querySelectorAll('.tool-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('success-banner').classList.remove('show');
+  document.getElementById('progress-section').innerHTML = '';
+  document.getElementById('log-box').innerHTML = '';
+  document.getElementById('install-tool-chips').innerHTML = '';
+  const btnNext = document.getElementById('btn-next');
+  btnNext.onclick = nextStep;
+  updateUI();
+}
+
+/* ─── Init ─────────────────────────────────────────────────────── */
+updateUI();
+</script>
+</body>
+</html>
