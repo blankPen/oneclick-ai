@@ -72,6 +72,25 @@ html, body { height: 100%; background: var(--bg); color: var(--fg); font-family:
 .tool-status { font-size: 11px; margin-top: 4px; }
 .tool-status.installed { color: var(--success); }
 .tool-status.not-installed { color: var(--muted); }
+
+/* Environment Status */
+.env-section { background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+.env-header { display: flex; align-items: center; gap: var(--sp3); padding: var(--sp3) var(--sp4); background: var(--surface-card); border-bottom: 1px solid var(--border); }
+.env-title { font-size: 12px; font-weight: 600; color: var(--fg); }
+.env-refresh { margin-left: auto; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; padding: 4px 8px; border-radius: var(--r-sm); }
+.env-refresh:hover { background: var(--surface-raised); color: var(--fg); }
+.env-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--border); }
+.env-item { display: flex; align-items: center; gap: var(--sp3); padding: var(--sp3) var(--sp4); background: var(--surface-raised); }
+.env-icon { font-size: 16px; width: 24px; text-align: center; }
+.env-info { flex: 1; min-width: 0; }
+.env-name { font-size: 11px; color: var(--muted); }
+.env-value { font-size: 12px; font-weight: 600; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.env-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.env-status-dot.ok { background: var(--success); }
+.env-status-dot.fail { background: var(--danger); }
+.env-status-dot.checking { background: var(--warn); animation: pulse 1s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
 .progress-section { display: flex; flex-direction: column; gap: var(--sp4); }
 .progress-tool { background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
 .progress-tool-header { display: flex; align-items: center; gap: var(--sp3); padding: var(--sp4) var(--sp5); border-bottom: 1px solid var(--border-soft); }
@@ -131,6 +150,22 @@ html, body { height: 100%; background: var(--bg); color: var(--fg); font-family:
         <div class="screen-title">选择一个要安装的工具</div>
         <div class="screen-desc">点击选择工具，如果已安装会显示版本号。点击已安装的工具会先卸载再重新安装。</div>
       </div>
+
+      <!-- Environment Status -->
+      <div class="env-section">
+        <div class="env-header">
+          <span>🔍</span>
+          <span class="env-title">环境状态</span>
+          <button class="env-refresh" onclick="refreshDetection()">🔄 刷新</button>
+        </div>
+        <div class="env-grid" id="env-grid">
+          <div class="env-item"><div class="env-icon">⬡</div><div class="env-info"><div class="env-name">Node.js</div><div class="env-value" id="env-node-value">检测中...</div></div><div class="env-status-dot checking" id="env-node-dot"></div></div>
+          <div class="env-item"><div class="env-icon">📦</div><div class="env-info"><div class="env-name">npm</div><div class="env-value" id="env-npm-value">检测中...</div></div><div class="env-status-dot checking" id="env-npm-dot"></div></div>
+          <div class="env-item"><div class="env-icon">🐍</div><div class="env-info"><div class="env-name">Python</div><div class="env-value" id="env-python-value">检测中...</div></div><div class="env-status-dot checking" id="env-python-dot"></div></div>
+          <div class="env-item"><div class="env-icon">🌿</div><div class="env-info"><div class="env-name">Git</div><div class="env-value" id="env-git-value">检测中...</div></div><div class="env-status-dot checking" id="env-git-dot"></div></div>
+        </div>
+      </div>
+
       <div class="tool-list" id="tool-list">
         <div style="text-align:center; padding:var(--sp8); color:var(--muted);">
           <div class="spinner" style="margin:0 auto var(--sp4);"></div>
@@ -174,6 +209,7 @@ html, body { height: 100%; background: var(--bg); color: var(--fg); font-family:
 let currentStep = 1;
 let selectedToolId = null;
 let installedTools = {};
+let envStatus = {};
 
 const TOOLS = {
   'claude-code': {
@@ -193,6 +229,57 @@ async function invokeTauri(cmd, args = {}) {
   }
 }
 
+async function detectEnvironment() {
+  try {
+    const result = await invokeTauri('check_env_cmd');
+    envStatus = result;
+    renderEnvironment();
+  } catch (e) {
+    console.error('Env detection error:', e);
+    // Set all as not found
+    envStatus = { node: {found:false}, npm: {found:false}, python: {found:false}, git: {found:false} };
+    renderEnvironment();
+  }
+}
+
+function renderEnvironment() {
+  const items = [
+    { key: 'node', label: 'Node.js' },
+    { key: 'npm', label: 'npm' },
+    { key: 'python', label: 'Python' },
+    { key: 'git', label: 'Git' },
+  ];
+  
+  for (const item of items) {
+    const status = envStatus[item.key] || { found: false, version: null };
+    const valueEl = document.getElementById('env-' + item.key + '-value');
+    const dotEl = document.getElementById('env-' + item.key + '-dot');
+    
+    if (status.found && status.version) {
+      valueEl.textContent = status.version;
+      valueEl.style.color = 'var(--success)';
+      dotEl.className = 'env-status-dot ok';
+    } else {
+      valueEl.textContent = '未安装';
+      valueEl.style.color = 'var(--danger)';
+      dotEl.className = 'env-status-dot fail';
+    }
+  }
+}
+
+function refreshDetection() {
+  // Reset UI
+  for (const key of ['node', 'npm', 'python', 'git']) {
+    const valueEl = document.getElementById('env-' + key + '-value');
+    const dotEl = document.getElementById('env-' + key + '-dot');
+    valueEl.textContent = '检测中...';
+    valueEl.style.color = 'var(--muted)';
+    dotEl.className = 'env-status-dot checking';
+  }
+  detectEnvironment();
+  detectInstalledTools();
+}
+
 async function detectInstalledTools() {
   try {
     const result = await invokeTauri('check_claude_code_cmd');
@@ -200,6 +287,7 @@ async function detectInstalledTools() {
   } catch (e) {
     installedTools['claude-code'] = { installed: false };
   }
+  renderToolList();
 }
 
 function renderToolList() {
@@ -391,21 +479,20 @@ function restartApp() {
   document.getElementById('log-box').innerHTML = '';
   document.getElementById('progress-section').innerHTML = '';
   updateUI();
-  initToolSelection();
+  initDetection();
 }
 
-async function initToolSelection() {
-  const container = document.getElementById('tool-list');
-  container.innerHTML = '<div style="text-align:center; padding:var(--sp8); color:var(--muted);"><div class="spinner" style="margin:0 auto var(--sp4);"></div>正在检测已安装的工具...</div>';
+async function initDetection() {
+  await detectEnvironment();
   await detectInstalledTools();
-  renderToolList();
   updateNextBtn();
 }
 
+// Watch for screen 2 becoming active
 const observer = new MutationObserver((mutations) => {
   for (const m of mutations) {
     if (m.target.id === 'screen-2' && m.target.classList.contains('active')) {
-      initToolSelection();
+      initDetection();
     }
   }
 });

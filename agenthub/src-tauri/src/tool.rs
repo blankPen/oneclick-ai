@@ -5,6 +5,15 @@ pub struct InstallState {
     pub installed: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub method: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnvStatus {
+    pub found: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,6 +48,7 @@ mod tests {
         let state = InstallState {
             installed: true,
             version: Some("2.1.0".to_string()),
+            method: Some("npm".to_string()),
         };
         let json = serde_json::to_string(&state).unwrap();
         assert!(json.contains("\"installed\":true"));
@@ -50,6 +60,7 @@ mod tests {
         let state = InstallState {
             installed: false,
             version: None,
+            method: None,
         };
         let json = serde_json::to_string(&state).unwrap();
         assert!(json.contains("\"installed\":false"));

@@ -1,6 +1,15 @@
 use crate::runtime;
-use crate::tool::{InstallState, Tool};
-use tauri::Window;
+use crate::tool::{EnvStatus, InstallState, Tool};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnvCheckResult {
+    pub node: EnvStatus,
+    pub npm: EnvStatus,
+    pub python: EnvStatus,
+    pub git: EnvStatus,
+    pub disk: EnvStatus,
+}
 
 #[tauri::command]
 pub async fn get_tools() -> Result<Vec<Tool>, String> {
@@ -15,7 +24,41 @@ pub async fn check_claude_code_cmd() -> Result<InstallState, String> {
 }
 
 #[tauri::command]
-pub async fn install_claude_code_cmd(_window: Window) -> Result<String, String> {
+pub async fn check_env_cmd() -> Result<EnvCheckResult, String> {
+    let (node, npm, python, git, disk) = tokio::join!(
+        runtime::check_node_version(),
+        runtime::check_npm_version(),
+        runtime::check_python_version(),
+        runtime::check_git_version(),
+        runtime::check_disk_space(),
+    );
+
+    Ok(EnvCheckResult {
+        node: match node {
+            Ok(v) => EnvStatus { found: true, version: Some(v) },
+            Err(_) => EnvStatus { found: false, version: None },
+        },
+        npm: match npm {
+            Ok(v) => EnvStatus { found: true, version: Some(v) },
+            Err(_) => EnvStatus { found: false, version: None },
+        },
+        python: match python {
+            Ok(v) => EnvStatus { found: true, version: Some(v) },
+            Err(_) => EnvStatus { found: false, version: None },
+        },
+        git: match git {
+            Ok(v) => EnvStatus { found: true, version: Some(v) },
+            Err(_) => EnvStatus { found: false, version: None },
+        },
+        disk: match disk {
+            Ok(v) => EnvStatus { found: true, version: Some(v) },
+            Err(_) => EnvStatus { found: false, version: None },
+        },
+    })
+}
+
+#[tauri::command]
+pub async fn install_claude_code_cmd() -> Result<String, String> {
     runtime::install_claude_code().await
 }
 

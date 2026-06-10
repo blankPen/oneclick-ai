@@ -58,6 +58,96 @@ async fn run_script(script_path: &str, _cmd: &str) -> Result<String, String> {
     Ok(stdout.trim().to_string())
 }
 
+// Environment detection
+pub async fn check_node_version() -> Result<String, String> {
+    let output = AsyncCommand::new("node")
+        .args(["--version"])
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        Err("not found".to_string())
+    }
+}
+
+pub async fn check_npm_version() -> Result<String, String> {
+    let output = AsyncCommand::new("npm")
+        .args(["--version"])
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        Err("not found".to_string())
+    }
+}
+
+pub async fn check_python_version() -> Result<String, String> {
+    // Try python3 first
+    let output = AsyncCommand::new("python3")
+        .args(["--version"])
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+    if output.status.success() {
+        return Ok(String::from_utf8_lossy(&output.stdout).trim().to_string());
+    }
+    // Try python as fallback
+    let output = AsyncCommand::new("python")
+        .args(["--version"])
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        Err("not found".to_string())
+    }
+}
+
+pub async fn check_git_version() -> Result<String, String> {
+    let output = AsyncCommand::new("git")
+        .args(["--version"])
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        Err("not found".to_string())
+    }
+}
+
+pub async fn check_disk_space() -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let output = AsyncCommand::new("df")
+            .args(["-h", "/"])
+            .output()
+            .await
+            .map_err(|e| e.to_string())?;
+        if output.status.success() {
+            let out = String::from_utf8_lossy(&output.stdout);
+            if let Some(line) = out.lines().nth(1) {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 4 {
+                    return Ok(parts[3].to_string());
+                }
+            }
+            Ok("unknown".to_string())
+        } else {
+            Err("failed".to_string())
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok("unknown".to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -65,7 +155,6 @@ mod tests {
     #[tokio::test]
     async fn test_check_claude_code_returns_valid_json() {
         let result = check_claude_code().await;
-        // Returns JSON like {"installed": false} or {"installed": true, "version": "..."}
         let output = result.expect("check_claude_code should succeed");
         assert!(output.contains("installed"));
     }
