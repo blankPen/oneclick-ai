@@ -1,0 +1,9 @@
+{
+  "name": "agenthub",
+  "version": "0.1.0",
+  "description": "AI Tools Installer",
+  "scripts": {
+    "dev": "echo 'No dev server needed - Tauri handles this'"
+  },
+  "dependencies": {}
+}
